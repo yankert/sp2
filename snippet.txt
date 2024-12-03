@@ -1,0 +1,38 @@
+else
+		{ // Child runs in foreground
+
+			const ProcInfo *info = plistAdd(pid, cmd->cmdLine, cmd->background);
+			if (info == NULL)
+				die("plistAdd");
+			printProcInfo(info);
+
+			sigset_t blockMask, oldMask, emptyMask;
+			sigemptyset(&blockMask);
+			sigaddset(&blockMask, SIGCHLD); // Blockiere SIGCHLD
+			sigprocmask(SIG_BLOCK, &blockMask, &oldMask);
+
+			sigemptyset(&emptyMask);
+			int event;
+			while (1)
+			{
+				// Setze eine leere Maske und warte auf SIGCHLD
+				sigsuspend(&emptyMask);
+
+				int ret = 0;
+				// Prüfe, ob der Prozess bereits beendet wurde
+				if ((ret = waitpid(pid, &event, WNOHANG)) > 0)
+				{
+					break;
+				}
+				if (ret == -1 && errno == ECHILD)
+				{
+					break;
+				}
+			}
+
+			// Wiederherstellen der Maske
+			sigprocmask(SIG_SETMASK, &oldMask, NULL);
+
+			// Ergebnis ausgeben
+			printProcEvent(pid, cmd->cmdLine, event);
+		}
